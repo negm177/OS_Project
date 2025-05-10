@@ -11,6 +11,8 @@
 #include <ctime>
 #include <cstdlib>
 
+using namespace std;
+
 // Forward declarations
 class Building;
 class Elevator;
@@ -19,7 +21,7 @@ class Elevator;
 struct Request {
     int sourceFloor;
     int destFloor;
-    std::chrono::steady_clock::time_point timestamp;
+    chrono::steady_clock::time_point timestamp;
 };
 
 // Elevator class declaration
@@ -27,13 +29,13 @@ class Elevator {
 private:
     int id;
     int currentFloor = 1;
-    std::thread thr;
+    thread thr;
     Building* building;
     bool running = true;
 
-    static std::mutex logMtx;
+    static mutex logMtx;
 
-    void log(const std::string& msg);
+    void log(const string& msg);
     void moveTo(int target);
     void process(const Request& r);
     void run();
@@ -45,22 +47,22 @@ public:
     void stop();
 };
 
-std::mutex Elevator::logMtx;
+mutex Elevator::logMtx;
 
 // Building class definition
 class Building {
 private:
-    std::vector<std::shared_ptr<Elevator>> elevators;
-    std::queue<Request> requestQ;
-    std::mutex mtx;
-    std::condition_variable cv;
+    vector<shared_ptr<Elevator>> elevators;
+    queue<Request> requestQ;
+    mutex mtx;
+    condition_variable cv;
     bool acceptingRequests = true;
     int numFloors;
 
 public:
     Building(int numElev, int floors) : numFloors(floors) {
         for (int i = 0; i < numElev; i++) {
-            elevators.push_back(std::make_shared<Elevator>(i, this));
+            elevators.push_back(make_shared<Elevator>(i, this));
         }
     }
 
@@ -78,7 +80,7 @@ public:
 
     void addRequest(const Request& r) {
         {
-            std::lock_guard<std::mutex> lk(mtx);
+            lock_guard<mutex> lk(mtx);
             requestQ.push(r);
         }
         cv.notify_one();
@@ -86,14 +88,14 @@ public:
 
     void stopAcceptingRequests() {
         {
-            std::lock_guard<std::mutex> lk(mtx);
+            lock_guard<mutex> lk(mtx);
             acceptingRequests = false;
         }
         cv.notify_all();
     }
 
-    std::optional<Request> waitForRequest() {
-        std::unique_lock<std::mutex> lk(mtx);
+    optional<Request> waitForRequest() {
+        unique_lock<mutex> lk(mtx);
         cv.wait(lk, [&] { return !requestQ.empty() || !acceptingRequests; });
 
         if (!requestQ.empty()) {
@@ -102,33 +104,33 @@ public:
             return r;
         }
         else {
-            return std::nullopt;
+            return nullopt;
         }
     }
 };
 
 // Elevator member function definitions
-void Elevator::log(const std::string& msg) {
-    std::lock_guard<std::mutex> lk(logMtx);
-    std::cout << "[E" << id << "] " << msg << std::endl;
+void Elevator::log(const string& msg) {
+    lock_guard<mutex> lk(logMtx);
+    cout << "[E" << id << "] " << msg << endl;
 }
 
 void Elevator::moveTo(int target) {
     while (currentFloor != target) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        this_thread::sleep_for(chrono::milliseconds(200));
         currentFloor += (target > currentFloor) ? 1 : -1;
-        log("Passing floor " + std::to_string(currentFloor));
+        log("Passing floor " + to_string(currentFloor));
     }
 }
 
 void Elevator::process(const Request& r) {
     moveTo(r.sourceFloor);
-    log("Pick up at " + std::to_string(r.sourceFloor));
+    log("Pick up at " + to_string(r.sourceFloor));
     moveTo(r.destFloor);
-    log("Drop off at " + std::to_string(r.destFloor));
-    auto end = std::chrono::steady_clock::now();
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - r.timestamp).count();
-    log("Request time: " + std::to_string(ms) + " ms");
+    log("Drop off at " + to_string(r.destFloor));
+    auto end = chrono::steady_clock::now();
+    auto ms = chrono::duration_cast<chrono::milliseconds>(end - r.timestamp).count();
+    log("Request time: " + to_string(ms) + " ms");
 }
 
 void Elevator::run() {
@@ -148,7 +150,7 @@ Elevator::~Elevator() {
 }
 
 void Elevator::start() {
-    thr = std::thread(&Elevator::run, this);
+    thr = thread(&Elevator::run, this);
 }
 
 void Elevator::stop() {
@@ -162,18 +164,18 @@ void Elevator::stop() {
 // Request generator
 void requestGenerator(Building& b, int numRequests, int maxFloor) {
     for (int i = 0; i < numRequests; ++i) {
-        int source = std::rand() % maxFloor + 1;
-        int dest = std::rand() % maxFloor + 1;
-        while (dest == source) dest = std::rand() % maxFloor + 1;
-        Request r = { source, dest, std::chrono::steady_clock::now() };
+        int source = rand() % maxFloor + 1;
+        int dest = rand() % maxFloor + 1;
+        while (dest == source) dest = rand() % maxFloor + 1;
+        Request r = { source, dest, chrono::steady_clock::now() };
         b.addRequest(r);
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        this_thread::sleep_for(chrono::seconds(1));
     }
     b.stopAcceptingRequests();
 }
 
 int main() {
-    std::srand(static_cast<unsigned int>(std::time(nullptr)));
+    srand(static_cast<unsigned int>(time(nullptr)));
     const int numElevators = 2;
     const int numFloors = 10;
     const int numRequests = 10;
@@ -181,11 +183,11 @@ int main() {
     Building b(numElevators, numFloors);
     b.startElevators();
 
-    std::thread gen(requestGenerator, std::ref(b), numRequests, numFloors);
+    thread gen(requestGenerator, ref(b), numRequests, numFloors);
     gen.join();
 
     b.waitForElevators();
 
-    std::cout << "Simulation completed." << std::endl;
+    cout << "Simulation completed." << endl;
     return 0;
 }
